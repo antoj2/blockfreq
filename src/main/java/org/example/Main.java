@@ -22,7 +22,7 @@ public class Main {
 
         Map<Integer, Map<String, Integer>> yBlockMap = new TreeMap<>();
 
-        ArrayList<String> blockNames = new ArrayList<>();
+        Set<String> blockNameSet = new LinkedHashSet<>();
 
         for (TerrainChunk chunk : mcaWorld) {
             if (chunk == null || chunk.getBlockAt(0, -64, 0).get("Name").valueToString().equals(AIR))
@@ -34,41 +34,32 @@ public class Main {
                 if (blockStates == null) continue;
 
                 int yLevel = section.getSectionY() * 16;
-                int counter = 0;
+                int index = 1;
 
                 for (CompoundTag j : blockStates) {
-                    counter++;
-                    int finalYLevel = yLevel;
-                    String blockName = j.get("Name").valueToString().replace("\"", "");
-                    if (!blockNames.contains(blockName)) {
-                        blockNames.add(blockName);
-                    }
-                    yBlockMap.compute(finalYLevel, (_, value) -> {
-                        if (value == null) {
-                            value = new TreeMap<>();
-                        }
+                    int currentY = yLevel + index / 256;
+                    String blockName = j.get("Name").valueToString();
 
-                        value.compute(blockName, (_, value1) -> (value1 == null) ? 1 : value1 + 1);
-                        return value;
-                    });
-                    if (counter >= 256) {
-                        yLevel++;
-                        counter = 0;
-                    }
+                    blockNameSet.add(blockName);
+
+                    yBlockMap.computeIfAbsent(currentY, k -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
+
+                    index++;
                 }
 
             }
         }
 
-        blockNames.sort(Comparator.naturalOrder());
+        List<String> blockNames = new ArrayList<>(blockNameSet);
+        Collections.sort(blockNames);
 
         System.out.println(yBlockMap);
-        System.out.println(blockNames);
+        System.out.println(blockNameSet);
 
         Main.convertToCSV(yBlockMap, blockNames);
     }
 
-    public static void convertToCSV(Map<Integer, Map<String, Integer>> map, ArrayList<String> blockNames) throws IOException {
+    public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames) throws IOException {
         File csvFile = new File("1.csv");
         boolean f = csvFile.createNewFile();
         if (!f) {
