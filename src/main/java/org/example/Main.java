@@ -18,7 +18,30 @@ public class Main {
     static String AIR = "\"minecraft:air\"";
 
     public static void main(String[] args) throws IOException {
-        McaRegionFile mcaWorld = McaFileHelpers.readAuto(new File("/Users/antonjensen/Library/Application Support/minecraft/saves/New World/region/r.0.0.mca"));
+        String currentJar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getName();
+
+        if (args.length == 0) {
+            System.out.println("You need to provide the right amount of parameters");
+            System.out.println("Help: `java -jar " + currentJar + " (input_region_file output_csv)|(-h)");
+            System.exit(1);
+        }
+        if (args[0].equals("-h")) {
+            System.out.println("Help: `java -jar " + currentJar + " (input_region_file output_csv)|(-h)");
+            System.exit(0);
+        }
+        if (!args[0].endsWith(".mca") || !args[1].endsWith(".csv")) {
+            System.out.println("Invalid file extension");
+            System.exit(1);
+        }
+
+        // I think we can assume args[0] and args[1] is the region file and csv file respectively
+
+        String input = args[0];
+        String output = args[1];
+
+        McaRegionFile mcaWorld = McaFileHelpers.readAuto(new File(input));
+
+        System.out.println(Arrays.toString(args));
 
         Map<Integer, Map<String, Integer>> yBlockMap = new TreeMap<>();
 
@@ -54,16 +77,15 @@ public class Main {
         Collections.sort(blockNames);
 
         System.out.println(yBlockMap);
-        System.out.println(blockNameSet);
 
-        Main.convertToCSV(yBlockMap, blockNames);
+        Main.convertToCSV(yBlockMap, blockNames, output);
     }
 
-    public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames) throws IOException {
-        File csvFile = new File("1.csv");
+    public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames, String fileName) throws IOException {
+        File csvFile = new File(fileName);
         boolean f = csvFile.createNewFile();
         if (!f) {
-            throw new IOException("1.csv already exists");
+            throw new IOException(fileName + " already exists");
         }
 
         BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile));
