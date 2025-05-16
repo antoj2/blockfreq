@@ -2,5 +2,5 @@
 * Java
 
 # Usage
-`./gradlew jar`
-`java -jar blockfreq-1.0-SNAPSHOT.jar (input_region_file output_csv)|(-h)`
+`./gradlew jar`\
+`java -jar build/libs/blockfreq-1.0-SNAPSHOT.jar (-h) <input_region_file output_csv>`
