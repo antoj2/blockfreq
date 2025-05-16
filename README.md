@@ -1,5 +1,5 @@
 # Prerequisites
-* Java
+* JDK version greater than 23
 
 # Usage
 `./gradlew jar`\
