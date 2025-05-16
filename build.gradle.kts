@@ -4,24 +4,26 @@ plugins {
 
 tasks.jar {
     manifest {
-        attributes("Main-Class" to "org.example.Main")
+        attributes("Main-Class" to "com.github.antoj2.blockfreq.Main")
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE // Avoid duplicate resource issues
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) }) // Include dependencies
 }
 
-group = "org.example"
+group = "com.github.antoj2"
 version = "1.0-SNAPSHOT"
 
 repositories {
     mavenCentral()
-    mavenLocal()
+    flatDir {
+        dirs("libs")
+    }
 }
 
 dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
-    implementation("io.github.ensgijs:ens-nbt:0.1-SNAPSHOT")
+    implementation("ens:nbt:0.1")
 }
 
 tasks.test {

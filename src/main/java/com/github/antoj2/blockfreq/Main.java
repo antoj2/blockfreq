@@ -1,4 +1,4 @@
-package org.example;
+package com.github.antoj2.blockfreq;
 
 import io.github.ensgijs.nbt.mca.McaRegionFile;
 import io.github.ensgijs.nbt.mca.TerrainChunk;
@@ -6,16 +6,22 @@ import io.github.ensgijs.nbt.mca.TerrainSection;
 import io.github.ensgijs.nbt.mca.io.McaFileHelpers;
 import io.github.ensgijs.nbt.mca.util.PalettizedCuboid;
 import io.github.ensgijs.nbt.tag.CompoundTag;
+import io.github.ensgijs.nbt.tag.StringTag;
 
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.*;
 
 
 public class Main {
     static String AIR = "\"minecraft:air\"";
+    static String INCLUDEFILE = "include.txt";
+    static String EXCLUDEFILE = "exclude.txt";
+
+    public record FilterGroups(HashSet<String> include, HashSet<String> exclude) {
+    }
 
     public static void main(String[] args) throws IOException {
         String currentJar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getName();
@@ -47,6 +53,10 @@ public class Main {
 
         Set<String> blockNameSet = new LinkedHashSet<>();
 
+        FilterGroups filter = computeFilters();
+        boolean includeEmpty = filter.include.isEmpty();
+        boolean excludeEmpty = filter.exclude.isEmpty();
+
         for (TerrainChunk chunk : mcaWorld) {
             if (chunk == null || chunk.getBlockAt(0, -64, 0).get("Name").valueToString().equals(AIR))
                 continue;
@@ -59,13 +69,18 @@ public class Main {
                 int yLevel = section.getSectionY() * 16;
                 int index = 1;
 
-                for (CompoundTag j : blockStates) {
+                for (CompoundTag blockTag : blockStates) {
+                    StringTag nameTag = (StringTag) blockTag.get("Name");
+                    String blockName = nameTag.getValue();
+                    if ((!includeEmpty && !filter.include.contains(blockName)) || (!excludeEmpty && filter.exclude.contains(blockName))) {
+                        index++;
+                        continue;
+                    }
                     int currentY = yLevel + index / 256;
-                    String blockName = j.get("Name").valueToString();
 
                     blockNameSet.add(blockName);
 
-                    yBlockMap.computeIfAbsent(currentY, k -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
+                    yBlockMap.computeIfAbsent(currentY, _ -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
 
                     index++;
                 }
@@ -81,22 +96,47 @@ public class Main {
         Main.convertToCSV(yBlockMap, blockNames, output);
     }
 
+    public static FilterGroups computeFilters() throws IOException {
+        HashSet<String> includes = new HashSet<>();
+        Path includePath = Paths.get(INCLUDEFILE);
+        if (Files.exists(includePath)) {
+            try (BufferedReader includesReader = Files.newBufferedReader(includePath)) {
+                includesReader.lines().filter(line -> !line.trim().isEmpty()).forEach(includes::add);
+            }
+        }
+
+        HashSet<String> excludes = new HashSet<>();
+        Path excludePath = Paths.get(EXCLUDEFILE);
+        if (Files.exists(excludePath)) {
+            try (BufferedReader excludesReader = Files.newBufferedReader(excludePath)) {
+                excludesReader.lines().filter(line -> !line.trim().isEmpty()).forEach(excludes::add);
+            }
+        }
+
+        return new FilterGroups(includes, excludes);
+    }
+
     public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames, String fileName) throws IOException {
         File csvFile = new File(fileName);
-        boolean f = csvFile.createNewFile();
-        if (!f) {
+        if (csvFile.exists()) {
             throw new IOException(fileName + " already exists");
+        }
+        csvFile.createNewFile();
+
+        Map<String, Integer> nameToIndex = new HashMap<>();
+        for (int i = 0; i < blockNames.size(); i++) {
+            nameToIndex.put(blockNames.get(i), i);
         }
 
         BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile));
-        writer.write("Blocks;" + String.join(";", blockNames) + "\n");
+        writer.write("Y-level," + String.join(",", blockNames) + "\n");
 
         for (Map.Entry<Integer, Map<String, Integer>> l : map.entrySet()) {
             int[] blocks = new int[blockNames.size()];
             for (Map.Entry<String, Integer> e : l.getValue().entrySet()) {
-                blocks[blockNames.indexOf(e.getKey())] = e.getValue();
+                blocks[nameToIndex.get(e.getKey())] = e.getValue();
             }
-            writer.write(l.getKey() + ";" + String.join(";", Arrays.stream(blocks).mapToObj(String::valueOf).toArray(String[]::new)) + "\n");
+            writer.write(l.getKey() + "," + String.join(",", Arrays.stream(blocks).mapToObj(String::valueOf).toArray(String[]::new)) + "\n");
         }
 
         writer.close();
