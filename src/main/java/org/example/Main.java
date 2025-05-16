@@ -22,7 +22,7 @@ public class Main {
 
         if (args.length == 0) {
             System.out.println("You need to provide the right amount of parameters");
-            System.out.println("Help: `java -jar " + currentJar + " (input_region_file output_csv)|(-h)");
+            System.out.println("Help: `java -jar " + currentJar + " [-h] input_region_file output_csv");
             System.exit(1);
         }
         if (args[0].equals("-h")) {
