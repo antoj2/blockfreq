@@ -1,3 +1,6 @@
+import java.text.SimpleDateFormat
+import java.util.Date
+
 plugins {
     id("java")
 }
@@ -11,7 +14,7 @@ tasks.jar {
 }
 
 group = "com.github.antoj2"
-version = "1.0-SNAPSHOT"
+version = SimpleDateFormat("yyyy.MM.dd").format(Date())
 
 repositories {
     mavenCentral()

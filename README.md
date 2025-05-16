@@ -11,7 +11,7 @@ The filtering is done with the files `include.txt` and `exclude.txt`. These two 
 ## Usage
 1. Download the release on the right.
 2. From the terminal, run the jar file: \
-   `java -jar build/libs/blockfreq-1.0-SNAPSHOT.jar <input_region_file output_csv>`
+   `java -jar build/libs/blockfreq-{yyyy.MM.dd}.jar <input_region_file output_csv>`
 
 ## Build
 1. Get the repository on your computer: \
@@ -21,4 +21,4 @@ The filtering is done with the files `include.txt` and `exclude.txt`. These two 
 3. Compile into a runnable jar file: \
 `./gradlew jar`
 4. Run the jar file: \
-`java -jar build/libs/blockfreq-1.0-SNAPSHOT.jar <input_region_file output_csv>`
+`java -jar build/libs/blockfreq-{yyyy.MM.dd}.jar <input_region_file output_csv>`
