@@ -28,11 +28,11 @@ public class Main {
 
         if (args.length == 0) {
             System.out.println("You need to provide the right amount of parameters");
-            System.out.println("Help: `java -jar " + currentJar + " [-h] input_region_file output_csv");
+            System.out.println("Help: `java -jar " + currentJar + " (-h) <input_region_file output_csv>");
             System.exit(1);
         }
         if (args[0].equals("-h")) {
-            System.out.println("Help: `java -jar " + currentJar + " (input_region_file output_csv)|(-h)");
+            System.out.println("Help: `java -jar " + currentJar + " (-h) <input_region_file.mca output_csv.csv>");
             System.exit(0);
         }
         if (!args[0].endsWith(".mca") || !args[1].endsWith(".csv")) {
@@ -80,7 +80,7 @@ public class Main {
 
                     blockNameSet.add(blockName);
 
-                    yBlockMap.computeIfAbsent(currentY, _ -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
+                    yBlockMap.computeIfAbsent(currentY, k -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
 
                     index++;
                 }
