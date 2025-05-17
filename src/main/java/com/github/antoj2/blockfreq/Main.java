@@ -6,6 +6,7 @@ import io.github.ensgijs.nbt.mca.TerrainSection;
 import io.github.ensgijs.nbt.mca.io.McaFileHelpers;
 import io.github.ensgijs.nbt.mca.util.PalettizedCuboid;
 import io.github.ensgijs.nbt.tag.CompoundTag;
+import io.github.ensgijs.nbt.tag.ListTag;
 import io.github.ensgijs.nbt.tag.StringTag;
 
 import java.io.*;
@@ -16,7 +17,7 @@ import java.util.*;
 
 
 public class Main {
-    static String AIR = "\"minecraft:air\"";
+    static String AIR = "minecraft:air";
     static String INCLUDEFILE = "include.txt";
     static String EXCLUDEFILE = "exclude.txt";
 
@@ -45,6 +46,11 @@ public class Main {
         String input = args[0];
         String output = args[1];
 
+        File csvFile = new File(output);
+        if (csvFile.exists()) {
+            if (!askForConfirmation(String.format("%s already exists. Do you wish to continue? (Y/n)", output))) System.exit(0);
+        }
+
         McaRegionFile mcaWorld = McaFileHelpers.readAuto(new File(input));
 
         System.out.println(Arrays.toString(args));
@@ -58,13 +64,24 @@ public class Main {
         boolean excludeEmpty = filter.exclude.isEmpty();
 
         for (TerrainChunk chunk : mcaWorld) {
-            if (chunk == null || chunk.getBlockAt(0, -64, 0).get("Name").valueToString().equals(AIR))
+            if (chunk == null || ((StringTag) chunk.getBlockAt(0, -64, 0).get("Name")).getValue().equals(AIR))
                 continue;
 
             System.out.printf("Processing chunk at: %d, %d\n", chunk.getChunkX() * 16, chunk.getChunkZ() * 16);
             for (TerrainSection section : chunk) {
                 PalettizedCuboid<CompoundTag> blockStates = section.getBlockStates();
                 if (blockStates == null) continue;
+
+                List<CompoundTag> paletteTag = blockStates.getPalette();
+
+                Set<String> paletteBlockNames = new HashSet<>();
+                for (CompoundTag blockTag : paletteTag) {
+                    String blockName = ((StringTag) blockTag.get("Name")).getValue();
+                    paletteBlockNames.add(blockName);
+                }
+
+                if (!includeEmpty && Collections.disjoint(filter.include, paletteBlockNames)) continue;
+                if (!excludeEmpty && filter.exclude.containsAll(paletteBlockNames)) continue;
 
                 int yLevel = section.getSectionY() * 16;
                 int index = 1;
@@ -118,9 +135,6 @@ public class Main {
 
     public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames, String fileName) throws IOException {
         File csvFile = new File(fileName);
-        if (csvFile.exists()) {
-            throw new IOException(fileName + " already exists");
-        }
         csvFile.createNewFile();
 
         Map<String, Integer> nameToIndex = new HashMap<>();
@@ -128,7 +142,7 @@ public class Main {
             nameToIndex.put(blockNames.get(i), i);
         }
 
-        BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile));
+        BufferedWriter writer = new BufferedWriter(new FileWriter(csvFile, false));
         writer.write("Y-level," + String.join(",", blockNames) + "\n");
 
         for (Map.Entry<Integer, Map<String, Integer>> l : map.entrySet()) {
@@ -140,5 +154,23 @@ public class Main {
         }
 
         writer.close();
+    }
+
+    public static boolean askForConfirmation(String prompt) throws IOException {
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        String input;
+
+        while (true) {
+            System.out.println(prompt);
+            input = reader.readLine().trim();
+
+            // default to yes
+            if (input.isEmpty()) {
+                return true;
+            }
+
+            if (input.equalsIgnoreCase("y")) return true;
+            if (input.equalsIgnoreCase("n")) return false;
+        }
     }
 }
