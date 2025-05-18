@@ -10,7 +10,7 @@ import java.nio.file.Paths;
 import java.util.*;
 
 
-public class Main {
+public class BlockFreq {
     static String INCLUDEFILE = "include.txt";
     static String EXCLUDEFILE = "exclude.txt";
 
@@ -29,7 +29,7 @@ public class Main {
     }
 
     public static void main(String[] args) throws IOException {
-        String currentJar = new File(Main.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getName();
+        String currentJar = new File(BlockFreq.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getName();
 
         if (args.length == 0) {
             System.out.println("You need to provide the right amount of parameters");
@@ -60,17 +60,27 @@ public class Main {
 
         System.out.println(Arrays.toString(args));
 
-        McaProcessor mcaProcessor = new McaProcessor();
-        McaProcessor.ChunkResult regionResult = mcaProcessor.processRegion(mcaWorld, filter);
+        McaProcessorBiomed mcaProcessor = new McaProcessorBiomed();
+        McaProcessorBiomed.ChunkResultBiomed regionResult = mcaProcessor.processRegion(mcaWorld, filter);
 
         System.out.println("Finished processing chunks");
+        System.out.println("regionResult = " + regionResult);
 
-        List<String> blockNames = new ArrayList<>(regionResult.blockNameSet());
-        Collections.sort(blockNames);
+        for (Map.Entry<String, McaProcessor.ChunkResult> biome : regionResult.biomes().entrySet()) {
+            List<String> blockNames = new ArrayList<>(biome.getValue().blockNameSet());
+            Collections.sort(blockNames);
 
-        System.out.println(regionResult.yBlockMap());
+            System.out.println(biome.getValue().yBlockMap());
 
-        Main.convertToCSV(regionResult.yBlockMap(), blockNames, output);
+            BlockFreq.convertToCSV(biome.getValue().yBlockMap(), blockNames, biome.getKey() + ".csv");
+        }
+
+//        List<String> blockNames = new ArrayList<>(regionResult.blockNameSet());
+//        Collections.sort(blockNames);
+//
+//        System.out.println(regionResult.yBlockMap());
+//
+//        BlockFreq.convertToCSV(regionResult.yBlockMap(), blockNames, output);
     }
 
     private static FilterGroups computeFilters() throws IOException {

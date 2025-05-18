@@ -8,6 +8,7 @@ import io.github.ensgijs.nbt.tag.CompoundTag;
 import io.github.ensgijs.nbt.tag.StringTag;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class McaProcessorBiomed {
     public record ChunkResultBiomed(Map<String, McaProcessor.ChunkResult> biomes) {
@@ -16,8 +17,9 @@ public class McaProcessorBiomed {
     private final Map<String, Map<Integer, Map<String, Integer>>> biomeYBlockMap = new TreeMap<>();
     private final Map<String, Set<String>> biomeBlockNameSet = new TreeMap<>();
 
-    public void processChunk(TerrainChunk chunk, Main.FilterGroups filter) {
+    public void processChunk(TerrainChunk chunk, BlockFreq.FilterGroups filter) {
         if (chunk == null || !chunk.getStatus().equals("minecraft:full")) return;
+
 
         System.out.printf("Processing chunk at: %d, %d\n", chunk.getChunkX() * 16, chunk.getChunkZ() * 16);
         for (TerrainSection section : chunk) {
@@ -63,7 +65,16 @@ public class McaProcessorBiomed {
         }
     }
 
-    public ChunkResultBiomed processRegion(McaRegionFile mcaFile, Main.FilterGroups filter) {
-        return null;
+    public ChunkResultBiomed processRegion(McaRegionFile mcaFile, BlockFreq.FilterGroups filter) {
+        for (TerrainChunk chunk : mcaFile) {
+            this.processChunk(chunk, filter);
+        }
+
+        return new ChunkResultBiomed(biomeYBlockMap.keySet().stream()
+                .collect(Collectors.toMap(
+                        key -> key,
+                        key -> new McaProcessor.ChunkResult(biomeYBlockMap.get(key), biomeBlockNameSet.get(key))
+                ))
+        );
     }
 }

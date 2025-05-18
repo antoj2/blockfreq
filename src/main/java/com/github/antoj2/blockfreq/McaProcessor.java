@@ -19,7 +19,7 @@ public class McaProcessor {
     private final Map<Integer, Map<String, Integer>> yBlockMap = new TreeMap<>();
     private final Set<String> blockNameSet = new LinkedHashSet<>();
 
-    public void processChunk(TerrainChunk chunk, Main.FilterGroups filter) {
+    public void processChunk(TerrainChunk chunk, BlockFreq.FilterGroups filter) {
         if (chunk == null || !chunk.getStatus().equals("minecraft:full")) return;
 
         System.out.printf("Processing chunk at: %d, %d\n", chunk.getChunkX() * 16, chunk.getChunkZ() * 16);
@@ -62,7 +62,7 @@ public class McaProcessor {
         }
     }
 
-    public ChunkResult processRegion(McaRegionFile mcaFile, Main.FilterGroups filter) {
+    public ChunkResult processRegion(McaRegionFile mcaFile, BlockFreq.FilterGroups filter) {
         for (TerrainChunk chunk : mcaFile) {
             this.processChunk(chunk, filter);
         }
