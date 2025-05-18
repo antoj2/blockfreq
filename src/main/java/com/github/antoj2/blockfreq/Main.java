@@ -1,13 +1,7 @@
 package com.github.antoj2.blockfreq;
 
 import io.github.ensgijs.nbt.mca.McaRegionFile;
-import io.github.ensgijs.nbt.mca.TerrainChunk;
-import io.github.ensgijs.nbt.mca.TerrainSection;
 import io.github.ensgijs.nbt.mca.io.McaFileHelpers;
-import io.github.ensgijs.nbt.mca.util.PalettizedCuboid;
-import io.github.ensgijs.nbt.tag.CompoundTag;
-import io.github.ensgijs.nbt.tag.ListTag;
-import io.github.ensgijs.nbt.tag.StringTag;
 
 import java.io.*;
 import java.nio.file.Files;
@@ -17,11 +11,21 @@ import java.util.*;
 
 
 public class Main {
-    static String AIR = "minecraft:air";
     static String INCLUDEFILE = "include.txt";
     static String EXCLUDEFILE = "exclude.txt";
 
-    public record FilterGroups(HashSet<String> include, HashSet<String> exclude) {
+    public record FilterGroups(HashSet<String> include, HashSet<String> exclude, boolean includeEmpty,
+                               boolean excludeEmpty) {
+    }
+
+    static FilterGroups filter;
+
+    static {
+        try {
+            filter = computeFilters();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static void main(String[] args) throws IOException {
@@ -48,89 +52,43 @@ public class Main {
 
         File csvFile = new File(output);
         if (csvFile.exists()) {
-            if (!askForConfirmation(String.format("%s already exists. Do you wish to continue? (Y/n)", output))) System.exit(0);
+            if (!askForConfirmation(String.format("%s already exists. Do you wish to continue? (Y/n)", output)))
+                System.exit(0);
         }
 
         McaRegionFile mcaWorld = McaFileHelpers.readAuto(new File(input));
 
         System.out.println(Arrays.toString(args));
 
-        Map<Integer, Map<String, Integer>> yBlockMap = new TreeMap<>();
+        McaProcessor mcaProcessor = new McaProcessor();
+        McaProcessor.ChunkResult regionResult = mcaProcessor.processRegion(mcaWorld, filter);
 
-        Set<String> blockNameSet = new LinkedHashSet<>();
+        System.out.println("Finished processing chunks");
 
-        FilterGroups filter = computeFilters();
-        boolean includeEmpty = filter.include.isEmpty();
-        boolean excludeEmpty = filter.exclude.isEmpty();
-
-        for (TerrainChunk chunk : mcaWorld) {
-            if (chunk == null || ((StringTag) chunk.getBlockAt(0, -64, 0).get("Name")).getValue().equals(AIR))
-                continue;
-
-            System.out.printf("Processing chunk at: %d, %d\n", chunk.getChunkX() * 16, chunk.getChunkZ() * 16);
-            for (TerrainSection section : chunk) {
-                PalettizedCuboid<CompoundTag> blockStates = section.getBlockStates();
-                if (blockStates == null) continue;
-
-                List<CompoundTag> paletteTag = blockStates.getPalette();
-
-                Set<String> paletteBlockNames = new HashSet<>();
-                for (CompoundTag blockTag : paletteTag) {
-                    String blockName = ((StringTag) blockTag.get("Name")).getValue();
-                    paletteBlockNames.add(blockName);
-                }
-
-                if (!includeEmpty && Collections.disjoint(filter.include, paletteBlockNames)) continue;
-                if (!excludeEmpty && filter.exclude.containsAll(paletteBlockNames)) continue;
-
-                int yLevel = section.getSectionY() * 16;
-                int index = 1;
-
-                for (CompoundTag blockTag : blockStates) {
-                    StringTag nameTag = (StringTag) blockTag.get("Name");
-                    String blockName = nameTag.getValue();
-                    if ((!includeEmpty && !filter.include.contains(blockName)) || (!excludeEmpty && filter.exclude.contains(blockName))) {
-                        index++;
-                        continue;
-                    }
-                    int currentY = yLevel + index / 256;
-
-                    blockNameSet.add(blockName);
-
-                    yBlockMap.computeIfAbsent(currentY, k -> new TreeMap<>()).merge(blockName, 1, Integer::sum);
-
-                    index++;
-                }
-
-            }
-        }
-
-        List<String> blockNames = new ArrayList<>(blockNameSet);
+        List<String> blockNames = new ArrayList<>(regionResult.blockNameSet());
         Collections.sort(blockNames);
 
-        System.out.println(yBlockMap);
+        System.out.println(regionResult.yBlockMap());
 
-        Main.convertToCSV(yBlockMap, blockNames, output);
+        Main.convertToCSV(regionResult.yBlockMap(), blockNames, output);
     }
 
-    public static FilterGroups computeFilters() throws IOException {
-        HashSet<String> includes = new HashSet<>();
-        Path includePath = Paths.get(INCLUDEFILE);
-        if (Files.exists(includePath)) {
-            try (BufferedReader includesReader = Files.newBufferedReader(includePath)) {
-                includesReader.lines().filter(line -> !line.trim().isEmpty()).forEach(includes::add);
+    private static FilterGroups computeFilters() throws IOException {
+        HashSet<String> includes = makeFilterSet(INCLUDEFILE);
+        HashSet<String> excludes = makeFilterSet(EXCLUDEFILE);
+
+        return new FilterGroups(includes, excludes, includes.isEmpty(), excludes.isEmpty());
+    }
+
+    private static HashSet<String> makeFilterSet(String filterFile) throws IOException {
+        HashSet<String> set = new HashSet<>();
+        Path path = Paths.get(filterFile);
+        if (Files.exists(path)) {
+            try (BufferedReader reader = Files.newBufferedReader(path)) {
+                reader.lines().filter(line -> !line.trim().isEmpty()).forEach(set::add);
             }
         }
-
-        HashSet<String> excludes = new HashSet<>();
-        Path excludePath = Paths.get(EXCLUDEFILE);
-        if (Files.exists(excludePath)) {
-            try (BufferedReader excludesReader = Files.newBufferedReader(excludePath)) {
-                excludesReader.lines().filter(line -> !line.trim().isEmpty()).forEach(excludes::add);
-            }
-        }
-
-        return new FilterGroups(includes, excludes);
+        return set;
     }
 
     public static void convertToCSV(Map<Integer, Map<String, Integer>> map, List<String> blockNames, String fileName) throws IOException {
