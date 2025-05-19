@@ -12,6 +12,22 @@ import java.util.stream.Collectors;
 
 public class McaProcessorBiomed {
     public record ChunkResultBiomed(Map<String, McaProcessor.ChunkResult> biomes) {
+        public ChunkResultBiomed() {
+            this(new HashMap<>());
+        }
+        public static ChunkResultBiomed merge(McaProcessorBiomed.ChunkResultBiomed a, McaProcessorBiomed.ChunkResultBiomed b) {
+            Map<String, McaProcessor.ChunkResult> merged = new HashMap<>();
+            Set<String> biomeKeys = new HashSet<>();
+            biomeKeys.addAll(a.biomes.keySet());
+            biomeKeys.addAll(b.biomes.keySet());
+
+            for (String biome : biomeKeys) {
+                McaProcessor.ChunkResult mergedResult = McaProcessor.ChunkResult.merge(a.biomes.getOrDefault(biome, new McaProcessor.ChunkResult()), b.biomes.getOrDefault(biome, new McaProcessor.ChunkResult()));
+                merged.put(biome, mergedResult);
+            }
+
+            return new ChunkResultBiomed(merged);
+        }
     }
 
     private final Map<String, Map<Integer, Map<String, Integer>>> biomeYBlockMap = new TreeMap<>();

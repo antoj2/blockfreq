@@ -14,6 +14,35 @@ public class McaProcessor {
             Map<Integer, Map<String, Integer>> yBlockMap,
             Set<String> blockNameSet
     ) {
+        public ChunkResult() {
+            this(new TreeMap<>(), new HashSet<>());
+        }
+        public static McaProcessor.ChunkResult merge(McaProcessor.ChunkResult a, McaProcessor.ChunkResult b) {
+            Map<Integer, Map<String, Integer>> mergedYBlockMap = new TreeMap<>();
+
+            Set<String> mergedBlockNameSet = new HashSet<>(a.blockNameSet);
+            mergedBlockNameSet.addAll(b.blockNameSet);
+
+            Set<Integer> allYLevels = new HashSet<>();
+            allYLevels.addAll(a.yBlockMap.keySet());
+            allYLevels.addAll(b.yBlockMap.keySet());
+
+            for (Integer yLevel : allYLevels) {
+                Map<String, Integer> mergedBlockCounts = new HashMap<>();
+
+                Map<String, Integer> aBlocks = a.yBlockMap.getOrDefault(yLevel, Collections.emptyMap());
+                mergedBlockCounts.putAll(aBlocks);
+
+                Map<String, Integer> bBlocks = b.yBlockMap.getOrDefault(yLevel, Collections.emptyMap());
+                for (Map.Entry<String, Integer> entry : bBlocks.entrySet()) {
+                    mergedBlockCounts.merge(entry.getKey(), entry.getValue(), Integer::sum);
+                }
+
+                mergedYBlockMap.put(yLevel, mergedBlockCounts);
+            }
+
+            return new McaProcessor.ChunkResult(mergedYBlockMap, mergedBlockNameSet);
+        }
     }
 
     private final Map<Integer, Map<String, Integer>> yBlockMap = new TreeMap<>();

@@ -7,7 +7,7 @@ plugins {
 
 tasks.jar {
     manifest {
-        attributes("Main-Class" to "com.github.antoj2.blockfreq.Main")
+        attributes("Main-Class" to "com.github.antoj2.blockfreq.BlockFreq")
     }
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE // Avoid duplicate resource issues
     from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) }) // Include dependencies
@@ -27,6 +27,7 @@ dependencies {
     testImplementation(platform("org.junit:junit-bom:5.10.0"))
     testImplementation("org.junit.jupiter:junit-jupiter")
     implementation("ens:nbt:0.1")
+    implementation("info.picocli:picocli:4.7.7")
 }
 
 tasks.test {

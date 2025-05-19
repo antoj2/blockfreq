@@ -2,97 +2,138 @@ package com.github.antoj2.blockfreq;
 
 import io.github.ensgijs.nbt.mca.McaRegionFile;
 import io.github.ensgijs.nbt.mca.io.McaFileHelpers;
+import picocli.CommandLine;
 
 import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.*;
 
+@CommandLine.Command(name = "BlockFreq", version = "BlockFreq 2025.05.18", mixinStandardHelpOptions = true)
+public class BlockFreq implements Runnable {
+    @CommandLine.Option(names = {"-I", "--include"}, description = "File to use for include filtering", converter = ExistingFileConverter.class)
+    File includeFile;
 
-public class BlockFreq {
-    static String INCLUDEFILE = "include.txt";
-    static String EXCLUDEFILE = "exclude.txt";
+    @CommandLine.Option(names = {"-E", "--exclude"}, description = "File to use for exclude filtering", converter = ExistingFileConverter.class)
+    File excludeFile;
+
+    @CommandLine.Option(names = "-b", description = "Create multiple csv files for different biomes")
+    boolean biome;
+
+    @CommandLine.Option(names = {"-o", "--output"},
+            description = "Filename to call the output csv file. \nWill be used as a format if -b is specified, replacing {} with the biome name")
+    File output;
+
+    @CommandLine.Parameters(arity = "1..*", paramLabel = "<input>", description = "Files or directories to analyze")
+    File[] inputs;
 
     public record FilterGroups(HashSet<String> include, HashSet<String> exclude, boolean includeEmpty,
                                boolean excludeEmpty) {
     }
 
-    static FilterGroups filter;
+    public static void main(String[] args) {
+        int exitCode = new CommandLine(new BlockFreq()).execute(args);
+        System.exit(exitCode);
+    }
 
-    static {
+    @Override
+    public void run() {
+        FilterGroups filter;
         try {
-            filter = computeFilters();
+            filter = this.computeFilters();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-    }
 
-    public static void main(String[] args) throws IOException {
-        String currentJar = new File(BlockFreq.class.getProtectionDomain().getCodeSource().getLocation().getPath()).getName();
-
-        if (args.length == 0) {
-            System.out.println("You need to provide the right amount of parameters");
-            System.out.println("Help: `java -jar " + currentJar + " (-h) <input_region_file output_csv>");
-            System.exit(1);
-        }
-        if (args[0].equals("-h")) {
-            System.out.println("Help: `java -jar " + currentJar + " (-h) <input_region_file.mca output_csv.csv>");
-            System.exit(0);
-        }
-        if (!args[0].endsWith(".mca") || !args[1].endsWith(".csv")) {
-            System.out.println("Invalid file extension");
-            System.exit(1);
+        List<File> flattened;
+        try {
+            flattened = flattenInput(inputs);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
-        // I think we can assume args[0] and args[1] is the region file and csv file respectively
+        if (biome) {
+            McaProcessorBiomed.ChunkResultBiomed collected = flattened.parallelStream().map(file -> {
+                try {
+                    McaRegionFile mcaFile = McaFileHelpers.readAuto(file);
+                    McaProcessorBiomed mcaProcessor = new McaProcessorBiomed();
+                    return mcaProcessor.processRegion(mcaFile, filter);
+                } catch (IOException e) {
+                    throw new RuntimeException("Error reading " + file);
+                }
+            }).reduce(McaProcessorBiomed.ChunkResultBiomed::merge).orElseGet(McaProcessorBiomed.ChunkResultBiomed::new);
 
-        String input = args[0];
-        String output = args[1];
+            for (Map.Entry<String, McaProcessor.ChunkResult> biome : collected.biomes().entrySet()) {
+                List<String> blockNames = new ArrayList<>(biome.getValue().blockNameSet());
+                Collections.sort(blockNames);
 
-        File csvFile = new File(output);
-        if (csvFile.exists()) {
-            if (!askForConfirmation(String.format("%s already exists. Do you wish to continue? (Y/n)", output)))
-                System.exit(0);
-        }
+                System.out.println(biome.getValue().yBlockMap());
 
-        McaRegionFile mcaWorld = McaFileHelpers.readAuto(new File(input));
+                if (output != null) {
+                    try {
+                        BlockFreq.convertToCSV(biome.getValue().yBlockMap(), blockNames, output.getName().replace("{}", biome.getKey()));
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+        } else {
+            McaProcessor.ChunkResult collected = flattened.parallelStream().map(file -> {
+                try {
+                    McaRegionFile mcaFile = McaFileHelpers.readAuto(file);
+                    McaProcessor mcaProcessor = new McaProcessor();
+                    return mcaProcessor.processRegion(mcaFile, filter);
+                } catch (IOException e) {
+                    throw new RuntimeException("Error reading " + file);
+                }
+            }).reduce(McaProcessor.ChunkResult::merge).orElseGet(McaProcessor.ChunkResult::new);
 
-        System.out.println(Arrays.toString(args));
-
-        McaProcessorBiomed mcaProcessor = new McaProcessorBiomed();
-        McaProcessorBiomed.ChunkResultBiomed regionResult = mcaProcessor.processRegion(mcaWorld, filter);
-
-        System.out.println("Finished processing chunks");
-        System.out.println("regionResult = " + regionResult);
-
-        for (Map.Entry<String, McaProcessor.ChunkResult> biome : regionResult.biomes().entrySet()) {
-            List<String> blockNames = new ArrayList<>(biome.getValue().blockNameSet());
+            List<String> blockNames = new ArrayList<>(collected.blockNameSet());
             Collections.sort(blockNames);
 
-            System.out.println(biome.getValue().yBlockMap());
+            System.out.println(collected.yBlockMap());
 
-            BlockFreq.convertToCSV(biome.getValue().yBlockMap(), blockNames, biome.getKey() + ".csv");
+            if (output != null) {
+                try {
+                    BlockFreq.convertToCSV(collected.yBlockMap(), blockNames, output.getName());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
         }
-
-//        List<String> blockNames = new ArrayList<>(regionResult.blockNameSet());
-//        Collections.sort(blockNames);
-//
-//        System.out.println(regionResult.yBlockMap());
-//
-//        BlockFreq.convertToCSV(regionResult.yBlockMap(), blockNames, output);
     }
 
-    private static FilterGroups computeFilters() throws IOException {
-        HashSet<String> includes = makeFilterSet(INCLUDEFILE);
-        HashSet<String> excludes = makeFilterSet(EXCLUDEFILE);
+    private FilterGroups computeFilters() throws IOException {
+        HashSet<String> includes = new HashSet<>();
+        if (includeFile != null) {
+            includes = makeFilterSet(includeFile);
+        }
+        HashSet<String> excludes = new HashSet<>();
+        if (excludeFile != null) {
+            excludes = makeFilterSet(excludeFile);
+        }
 
         return new FilterGroups(includes, excludes, includes.isEmpty(), excludes.isEmpty());
     }
 
-    private static HashSet<String> makeFilterSet(String filterFile) throws IOException {
+    private ArrayList<File> flattenInput(File[] inputs) throws IOException {
+        ArrayList<File> files = new ArrayList<>();
+        for (File file : inputs) {
+            File[] listFiles = file.listFiles(McaFileHelpers::isValidMcaFileName);
+            if (listFiles != null) {
+                // file is a directory
+                files.addAll(List.of(listFiles));
+            } else {
+                files.add(file);
+            }
+        }
+        return files;
+    }
+
+    private static HashSet<String> makeFilterSet(File filterFile) throws IOException {
         HashSet<String> set = new HashSet<>();
-        Path path = Paths.get(filterFile);
+        Path path = filterFile.toPath();
         if (Files.exists(path)) {
             try (BufferedReader reader = Files.newBufferedReader(path)) {
                 reader.lines().filter(line -> !line.trim().isEmpty()).forEach(set::add);
